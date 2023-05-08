@@ -1,0 +1,79 @@
+service: app
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  profile: serverless_new_user
+  region: us-east-1
+
+  iam:
+    role:
+      statements:
+        # Allow functions to list all buckets
+        - Effect: Allow
+          Action: "dynamodb:*"
+          Resource: "*"
+
+resources:
+  Resources:
+    usercreate:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: "usercreate"
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+functions:
+  validate:
+    handler: validate.validateuser
+  createuser:
+    handler: index.createuser
+    description: This function will create new user
+    environment:
+      DynamoDB_TableName: "usercreate"
+    events:
+      - http:
+          path: /v1/newuser
+          method: post
+          cors: true
+          request:
+            schemas:
+              application/json: ${file(schema/createuser.json)}
+  login:
+    handler: login.loginuser
+    description: This function will create new user
+    timeout: 6
+    environment:
+      DynamoDB_TableName: "usercreate"
+      JWT_SECRET: "secret"
+    layers:
+      - arn:aws:lambda:us-east-1:658905786887:layer:bcryptjs:1
+      - arn:aws:lambda:us-east-1:658905786887:layer:jwt:1
+
+    events:
+      - http:
+          path: /v1/user/login
+          method: post
+          cors: true
+          request:
+            schemas:
+              application/json: ${file(schema/login.json)}
+  updateuser:
+    handler: updateuser.updateuser
+    description: This function will update new user
+    environment:
+      DynamoDB_TableName: "usercreate"
+    events:
+      - http:
+          path: /v1/user/update
+          method: put
+          cors: true
+          authorizer: validate
